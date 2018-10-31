@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: springboot-polymer-demo
+metadata:
+  name: springboot-polymer-demo
+  annotations:
+      description: springboot-polymer-demo
+      iconClass: database
+      openshift.io/display-name: springboot-polymer-demo
+      tags: java
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: springboot-polymer-demo-service
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: springboot-polymer-demo-service
+    strategy:
+      rollingParams:
+        intervalSeconds: 1
+        timeoutSeconds: 1800
+        updatePeriodSeconds: 1
+      type: Rolling
+    triggers: {}
+    template:
+      metadata:
+        labels:
+          deploymentconfig: springboot-polymer-demo-service
+      spec:
+        containers:
+        - env:
+          - name: JAVA_OPTIONS
+            value: ${JAVA_OPTIONS}
+          image: docker.io/carljmosca/springboot-polymer-demo:1.0-SNAPSHOT
+          imagePullPolicy: Always
+          name: springboot-polymer-demo-service
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        restartPolicy: Always
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: springboot-polymer-demo-service
+  spec:
+    ports:
+    - name: http
+      port: 8080
+      targetPort: 0
+    selector:
+      deploymentconfig: springboot-polymer-demo-service
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: springboot-polymer-demo
+  spec:
+    port:
+      targetPort: "http"
+    to:
+      kind: Service
+      name: springboot-polymer-demo-service
+    tls:
+      termination: edge
+    wildcardPolicy: None        
+parameters:
+- description: The name for the application.
+  displayName: Application name
+  name: APPLICATION_NAME
+  required: true
+  value: springboot-polymer-demo
+- description: Java options
+  displayName: Java options
+  name: JAVA_OPTIONS
+  value: "-Xmx512m"
+  required: true
