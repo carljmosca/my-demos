@@ -7,6 +7,7 @@ package com.carljmosca.spring.controller;
 
 import com.carljmosca.spring.data.Student;
 import com.carljmosca.spring.repository.StudentRepository;
+import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,13 +30,14 @@ public class StudentController {
     @Autowired
     StudentRepository studentRepository;
 
+    @ApiOperation(value = "Get Students", notes = "Returns pageable students")
     @RequestMapping(value = "/student", method = RequestMethod.GET)
     public ResponseEntity<PagedResources<Student>> getStudents(Pageable pageable,
-    PagedResourcesAssembler assembler) {
-        
+            PagedResourcesAssembler assembler) {
+
         Page<Student> students = studentRepository.findAll(pageable);
-        
+
         return new ResponseEntity<>(assembler.toResource(students), HttpStatus.OK);
-        
+
     }
 }

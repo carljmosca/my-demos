@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: java-ocp-job-demo
+metadata:
+  name: java-ocp-job-demo
+  annotations:
+      description: java-ocp-job-demo
+      iconClass: database
+      openshift.io/display-name: java-ocp-job-demo
+      tags: java
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: java-ocp-job-demo-service
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: java-ocp-job-demo-service
+    strategy:
+      rollingParams:
+        intervalSeconds: 1
+        timeoutSeconds: 1800
+        updatePeriodSeconds: 1
+      type: Rolling
+    triggers: {}
+    template:
+      metadata:
+        labels:
+          deploymentconfig: java-ocp-job-demo-service
+      spec:
+        containers:
+        - env:
+          - name: JAVA_OPTIONS
+            value: ${JAVA_OPTIONS}
+          image: docker.io/carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
+          imagePullPolicy: Always
+          name: java-ocp-job-demo-service
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        restartPolicy: Always
+  status: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: java-ocp-job-demo-service
+  spec:
+    ports:
+    - name: http
+      port: 8080
+      targetPort: 0
+    selector:
+      deploymentconfig: java-ocp-job-demo-service
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: java-ocp-job-demo
+  spec:
+    port:
+      targetPort: "http"
+    to:
+      kind: Service
+      name: java-ocp-job-demo-service
+    tls:
+      termination: edge
+    wildcardPolicy: None        
+parameters:
+- description: The name for the application.
+  displayName: Application name
+  name: APPLICATION_NAME
+  required: true
+  value: java-ocp-job-demo
+- description: Java options
+  displayName: Java options
+  name: JAVA_OPTIONS
+  value: "-Xmx512m"
+  required: true

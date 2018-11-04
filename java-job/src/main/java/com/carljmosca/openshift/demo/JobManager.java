@@ -9,11 +9,21 @@ import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.PodSpec;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
-import io.fabric8.openshift.client.DefaultOpenShiftClient;
-import io.fabric8.openshift.client.OpenShiftClient;
+import io.fabric8.kubernetes.client.Config;
+import io.fabric8.kubernetes.client.ConfigBuilder;
+
+import io.fabric8.kubernetes.client.BatchAPIGroupClient;
+
+import io.fabric8.kubernetes.api.model.batch.Job;
+import io.fabric8.kubernetes.api.model.batch.JobBuilder;
+
+import io.fabric8.kubernetes.client.DefaultKubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -21,9 +31,13 @@ import java.util.List;
  */
 public class JobManager {
  
+    private static final Logger LOGGER = LoggerFactory.getLogger(JobManager.class);
+    
     public void create() {
-        
-        OpenShiftClient osClient = new DefaultOpenShiftClient();
+        String master = "https://192.168.2.2:8443/";
+        Config config = new ConfigBuilder().withMasterUrl(master).build();
+        KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
+        BatchAPIGroupClient osClient = kubernetesClient.adapt(BatchAPIGroupClient.class);
         
         // create container
         Container container = new Container();
@@ -44,15 +58,27 @@ public class JobManager {
         podTemplateSpec.setMetadata(metadata);
         podTemplateSpec.setSpec(podSpec);
         
-        osClient.batch().jobs().createNew().withNewMetadata()
+        Job job = new JobBuilder()
+                .withApiVersion("batch/v1beta1")
+                .withNewMetadata()
                 .withName("hello")
-                .endMetadata()
+                .endMetadata()         
                 .withNewSpec()
                 .withParallelism(1)
                 .withCompletions(1)
-                .withTemplate(podTemplateSpec)
                 .endSpec()
-                .done();
+                .withNewSpec()
+                .withNewTemplate()
+                .withSpec(podSpec)
+                .endTemplate()
+                .endSpec()
+                .build();
+        
+        LOGGER.debug("job built");
+        
+        osClient.jobs().create(job);
+        
+        LOGGER.debug("job created");
              
     }
     
