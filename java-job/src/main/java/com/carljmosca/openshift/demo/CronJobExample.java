@@ -8,6 +8,7 @@ package com.carljmosca.openshift.demo;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
+
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -25,7 +26,7 @@ import org.slf4j.LoggerFactory;
 public class CronJobExample {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CronJobExample.class);
-    String master = "https://192.168.2.2:8443/";
+    String master = "https://127.0.0.1:8443/";
 
     public CronJobExample() {
     }
@@ -63,7 +64,7 @@ public class CronJobExample {
                     .build();
 
             log("Creating cron job from object");
-            cronJob1 = client.batch().cronjobs().inNamespace(namespace).create(cronJob1);
+            cronJob1 = client.batch().cronjobs().inNamespace(namespace).withName("hello").create(cronJob1);
             log("Successfully created cronjob with name ", cronJob1.getMetadata().getName());
 
             log("Watching over pod which would be created during cronjob execution...");

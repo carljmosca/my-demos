@@ -34,7 +34,7 @@ objects:
         - env:
           - name: JAVA_OPTIONS
             value: ${JAVA_OPTIONS}
-          image: docker.io/carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
+          image: carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
           imagePullPolicy: Always
           name: java-ocp-job-demo-service
           resources:
