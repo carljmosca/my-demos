@@ -33,8 +33,11 @@ public class JobManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(JobManager.class);
     
     public void create() {
-        String master = "https://192.168.2.2:8443/";
-        Config config = new ConfigBuilder().withMasterUrl(master).build();
+        String masterUrl = System.getenv("MASTER_URL");
+        if (masterUrl == null || masterUrl.isEmpty()) {
+            masterUrl = "https://192.168.2.2:8443/";
+        }
+        Config config = new ConfigBuilder().withMasterUrl(masterUrl).build();
         KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
         BatchAPIGroupClient osClient = kubernetesClient.adapt(BatchAPIGroupClient.class);
         

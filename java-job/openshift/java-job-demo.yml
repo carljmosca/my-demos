@@ -34,6 +34,8 @@ objects:
         - env:
           - name: JAVA_OPTIONS
             value: ${JAVA_OPTIONS}
+          - name: MASTER_URL
+            value: ${MASTER_URL}
           image: carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
           imagePullPolicy: Always
           name: java-ocp-job-demo-service
@@ -83,3 +85,8 @@ parameters:
   name: JAVA_OPTIONS
   value: "-Xmx512m"
   required: true
+- description: OpenShift Master URL
+  displayName: Master URL
+  name: MASTER_URL
+  required: true
+  value: "https://console.starter-ca-central-1.openshift.com"

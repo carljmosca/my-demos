@@ -8,6 +8,7 @@ package com.carljmosca.openshift.demo;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
+import io.fabric8.kubernetes.api.model.batch.CronJobList;
 
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
@@ -26,7 +27,8 @@ import org.slf4j.LoggerFactory;
 public class CronJobExample {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CronJobExample.class);
-    String master = "https://127.0.0.1:8443/";
+    //String master = "https://127.0.0.1:8443/";
+    String master = "https://192.168.2.21:8443/";
 
     public CronJobExample() {
     }
@@ -36,6 +38,10 @@ public class CronJobExample {
         log("Using master with url ", master);
         Config config = new ConfigBuilder().withMasterUrl(master).build();
         try (final KubernetesClient client = new DefaultKubernetesClient(config)) {
+            CronJobList jobList = client.batch().cronjobs().inNamespace("job-demo").list();
+            jobList.getItems().forEach((job) -> {
+                System.out.println(job.getMetadata().getName() + " - status: " + job.getStatus().toString());
+            });
             final String namespace = client.getNamespace();
 
             CronJob cronJob1 = new CronJobBuilder()

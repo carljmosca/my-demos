@@ -16,7 +16,7 @@ public class Application {
         Application instance = new Application();
         try {
             instance.run();
-            instance.runCronJob();
+            //instance.runCronJob();
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
