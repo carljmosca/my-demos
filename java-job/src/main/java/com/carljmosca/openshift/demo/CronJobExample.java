@@ -38,11 +38,11 @@ public class CronJobExample {
         log("Using master with url ", master);
         Config config = new ConfigBuilder().withMasterUrl(master).build();
         try (final KubernetesClient client = new DefaultKubernetesClient(config)) {
-            CronJobList jobList = client.batch().cronjobs().inNamespace("job-demo").list();
+            final String namespace = client.getNamespace();
+            CronJobList jobList = client.batch().cronjobs().inNamespace(namespace).list();
             jobList.getItems().forEach((job) -> {
                 System.out.println(job.getMetadata().getName() + " - status: " + job.getStatus().toString());
             });
-            final String namespace = client.getNamespace();
 
             CronJob cronJob1 = new CronJobBuilder()
                     .withApiVersion("batch/v1beta1")
