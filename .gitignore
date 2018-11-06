@@ -20,3 +20,4 @@ nbdist/
 .classpath
 .project
 .settings/
+.factorypath/

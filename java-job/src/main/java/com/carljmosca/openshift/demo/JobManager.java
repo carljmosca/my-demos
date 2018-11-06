@@ -35,11 +35,12 @@ public class JobManager {
     public void create() {
         String masterUrl = System.getenv("MASTER_URL");
         if (masterUrl == null || masterUrl.isEmpty()) {
-            masterUrl = "https://192.168.2.2:8443/";
+            masterUrl = "https://127.0.0.1:8443/";
         }
         Config config = new ConfigBuilder().withMasterUrl(masterUrl).build();
         KubernetesClient kubernetesClient = new DefaultKubernetesClient(config);
-        BatchAPIGroupClient osClient = kubernetesClient.adapt(BatchAPIGroupClient.class);
+        final String namespace = kubernetesClient.getNamespace();
+        //BatchAPIGroupClient osClient = kubernetesClient.adapt(BatchAPIGroupClient.class);
         
         // create container
         Container container = new Container();
@@ -67,9 +68,10 @@ public class JobManager {
                 .endMetadata()         
                 .withNewSpec()
                 .withParallelism(1)
-                .withCompletions(1)
+                .withCompletions(1)            
                 .endSpec()
                 .withNewSpec()
+                
                 .withNewTemplate()
                 .withSpec(podSpec)
                 .endTemplate()
@@ -78,7 +80,7 @@ public class JobManager {
         
         LOGGER.debug("job built");
         
-        osClient.jobs().create(job);
+        kubernetesClient.batch().jobs().inNamespace(namespace).withName("test").create(job);
         
         LOGGER.debug("job created");
              

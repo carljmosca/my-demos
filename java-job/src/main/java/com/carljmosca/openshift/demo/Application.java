@@ -15,8 +15,8 @@ public class Application {
     public static void main(String[] args) {
         Application instance = new Application();
         try {
-            instance.run();
-            //instance.runCronJob();
+            //instance.run();
+            instance.runCronJob();
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }

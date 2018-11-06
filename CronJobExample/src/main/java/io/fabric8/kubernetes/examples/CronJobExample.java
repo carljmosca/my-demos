@@ -1,15 +1,23 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * Copyright (C) 2015 Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package com.carljmosca.openshift.demo;
+package io.fabric8.kubernetes.examples;
 
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
-import io.fabric8.kubernetes.api.model.batch.CronJobList;
-
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
@@ -18,33 +26,30 @@ import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.Watcher.Action;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+/*
+ * Creates a simple cronjob that runs every minute spinning a pod that echoes hello world.
+ */
 public class CronJobExample {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CronJobExample.class);
 
-    public CronJobExample() {
-    }
-
-    public void run() {
-        
-        String masterUrl = System.getenv("MASTER_URL");
-        if (masterUrl == null || masterUrl.isEmpty()) {
-            masterUrl = "https://127.0.0.1:8443/";
+    public static void main(String args[]) throws InterruptedException {
+        String master = "https://localhost:8443/";
+        if (args.length == 1) {
+            master = args[0];
         }
-        log("Using master with url ", masterUrl);
-        Config config = new ConfigBuilder().withMasterUrl(masterUrl).build();
+
+        log("Using master with url ", master);
+        Config config = new ConfigBuilder().withMasterUrl(master).build();
         try (final KubernetesClient client = new DefaultKubernetesClient(config)) {
             final String namespace = client.getNamespace();
-            CronJobList jobList = client.batch().cronjobs().inNamespace(namespace).list();
-            jobList.getItems().forEach((job) -> {
-                System.out.println(job.getMetadata().getName() + " - status: " + job.getStatus().toString());
-            });
 
             CronJob cronJob1 = new CronJobBuilder()
                     .withApiVersion("batch/v1beta1")
@@ -72,12 +77,12 @@ public class CronJobExample {
                     .build();
 
             log("Creating cron job from object");
-            cronJob1 = client.batch().cronjobs().inNamespace(namespace).withName("hello").create(cronJob1);
+            cronJob1 = client.batch().cronjobs().inNamespace(namespace).create(cronJob1);
             log("Successfully created cronjob with name ", cronJob1.getMetadata().getName());
 
             log("Watching over pod which would be created during cronjob execution...");
             final CountDownLatch watchLatch = new CountDownLatch(1);
-            try (Watch watch = client.pods().inNamespace(namespace).withLabel("job-name").watch(new Watcher<Pod>() {
+            try ( Watch watch = client.pods().inNamespace(namespace).withLabel("job-name").watch(new Watcher<Pod>() {
                 @Override
                 public void eventReceived(Action action, Pod aPod) {
                     log(aPod.getMetadata().getName(), aPod.getStatus().getPhase());
