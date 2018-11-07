@@ -11,6 +11,12 @@ metadata:
       tags: java
 objects:
 - apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: jobcontrollersa
+    labels:
+      component: jobcontrollersa
+- apiVersion: v1
   kind: DeploymentConfig
   metadata:
     name: java-ocp-job-demo-service

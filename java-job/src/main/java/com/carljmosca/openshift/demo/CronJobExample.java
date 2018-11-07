@@ -8,7 +8,6 @@ package com.carljmosca.openshift.demo;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.batch.CronJob;
 import io.fabric8.kubernetes.api.model.batch.CronJobBuilder;
-import io.fabric8.kubernetes.api.model.batch.CronJobList;
 
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
@@ -41,10 +40,10 @@ public class CronJobExample {
         Config config = new ConfigBuilder().withMasterUrl(masterUrl).build();
         try (final KubernetesClient client = new DefaultKubernetesClient(config)) {
             final String namespace = client.getNamespace();
-            CronJobList jobList = client.batch().cronjobs().inNamespace(namespace).list();
-            jobList.getItems().forEach((job) -> {
-                System.out.println(job.getMetadata().getName() + " - status: " + job.getStatus().toString());
-            });
+//            CronJobList jobList = client.batch().cronjobs().inNamespace(namespace).list();
+//            jobList.getItems().forEach((job) -> {
+//                System.out.println(job.getMetadata().getName() + " - status: " + job.getStatus().toString());
+//            });
 
             CronJob cronJob1 = new CronJobBuilder()
                     .withApiVersion("batch/v1beta1")
