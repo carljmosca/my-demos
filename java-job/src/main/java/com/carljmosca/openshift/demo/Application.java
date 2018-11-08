@@ -16,7 +16,6 @@ public class Application {
         Application instance = new Application();
         try {
             instance.run();
-            //instance.runCronJob();
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
@@ -25,12 +24,6 @@ public class Application {
     public Application() {
         
     }
-
-    public void runCronJob() {
-        CronJobExample cronJobExample = new CronJobExample();
-        cronJobExample.run();
-    }
-    
 
     public void run()  {
         JobManager jobManager = new JobManager();

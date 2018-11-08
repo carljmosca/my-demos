@@ -13,6 +13,8 @@ import io.fabric8.kubernetes.api.model.PodSpec;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
 import io.fabric8.kubernetes.api.model.batch.Job;
 import io.fabric8.kubernetes.api.model.batch.JobBuilder;
+import io.fabric8.kubernetes.api.model.batch.JobList;
+import io.fabric8.kubernetes.api.model.batch.JobStatus;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
 
@@ -20,7 +22,6 @@ import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +36,7 @@ public class JobManager {
     private final String namespace;
     private final int pauseSeconds;
     private final int maximumJobs;
+    private final long maximumJobTimeInSeconds;
 
     public JobManager() {
         String masterUrl = System.getenv("MASTER_URL");
@@ -46,64 +48,75 @@ public class JobManager {
         namespace = kubernetesClient.getNamespace();
         pauseSeconds = JobManager.getIntValueFromEnv("PAUSE_SECONDS", 10);
         maximumJobs = JobManager.getIntValueFromEnv("MAXIMUM_JOBS", 10);
+        maximumJobTimeInSeconds = JobManager.getIntValueFromEnv("MAXIMUM_JOB_TIME_IN_SECONDS", 25);
     }
 
     public void create() {
 
+        int jobNumber = 0;
+
         while (true) {
 
-            int jobs = kubernetesClient.batch().jobs().list().getItems().size();
-            if (jobs >= maximumJobs) {
-                System.out.println("Maximum jobs are active; pausing " + pauseSeconds + " seconds.");
-                try {
-                    Thread.sleep(pauseSeconds * 1000);
-                } catch (InterruptedException ex) {
-                    java.util.logging.Logger.getLogger(JobManager.class.getName()).log(Level.SEVERE, null, ex);
-                }
+            JobList jobList = getJobList();
+            if (jobList == null) {
+                sleep(pauseSeconds);
                 continue;
             }
-            // create container
-            int random = (int) (Math.random() * 50 + 1);
-            Container container = new Container();
-            container.setName("hello");
-            container.setImage("carljmosca/java-hello");
-            List<EnvVar> env = new ArrayList<>();
-            env.add(new EnvVar("PAUSE_SECONDS", Integer.toString(random), null));
-            container.setEnv(env);
-            List<Container> containers = new ArrayList<>();
-            containers.add(container);
 
-            PodSpec podSpec = new PodSpec();
-            podSpec.setContainers(containers);
-            podSpec.setRestartPolicy("OnFailure");
+            if (getJobs(jobList, true).size() >= maximumJobs) {
+                System.out.println(String.format("Maximum jobs are active; pausing %d seconds.", pauseSeconds));
+                sleep(pauseSeconds);
+            } else {
 
-            PodTemplateSpec podTemplateSpec = new PodTemplateSpec();
-            ObjectMeta metadata = new ObjectMeta();
-            metadata.setName("hello");
-            podTemplateSpec.setMetadata(metadata);
-            podTemplateSpec.setSpec(podSpec);
+                if (getJobCount(jobList, true) < maximumJobs) {
 
-            Job job = new JobBuilder()
-                    .withApiVersion("batch/v1")
-                    .withNewMetadata()
-                    .withName("hello")
-                    .endMetadata()
-                    .withNewSpec()
-                    .withParallelism(1)
-                    .withCompletions(1)
-                    .endSpec()
-                    .withNewSpec()
-                    .withNewTemplate()
-                    .withSpec(podSpec)
-                    .endTemplate()
-                    .endSpec()
-                    .build();
+                    // create container
+                    int random = (int) (Math.random() * 50 + 1);
+                    String jobAndContainerName = "hello-" + ++jobNumber;
+                    Container container = new Container();
+                    container.setName(jobAndContainerName);
+                    container.setImage("carljmosca/java-hello");
+                    List<EnvVar> env = new ArrayList<>();
+                    env.add(new EnvVar("PAUSE_SECONDS", Integer.toString(random), null));
+                    container.setEnv(env);
+                    List<Container> containers = new ArrayList<>();
+                    containers.add(container);
 
-            LOGGER.debug("job built");
+                    PodSpec podSpec = new PodSpec();
+                    podSpec.setContainers(containers);
+                    podSpec.setRestartPolicy("OnFailure");
 
-            kubernetesClient.batch().jobs().inNamespace(namespace).withName("test").create(job);
+                    PodTemplateSpec podTemplateSpec = new PodTemplateSpec();
+                    ObjectMeta metadata = new ObjectMeta();
+                    metadata.setName(jobAndContainerName);
+                    podTemplateSpec.setMetadata(metadata);
+                    podTemplateSpec.setSpec(podSpec);
 
-            LOGGER.debug("job created");
+                    Job job = new JobBuilder()
+                            .withApiVersion("batch/v1")
+                            .withNewMetadata()
+                            .withName(jobAndContainerName)
+                            .endMetadata()
+                            .withNewSpec()
+                            .withParallelism(1)
+                            .withCompletions(1)
+                            .withActiveDeadlineSeconds(maximumJobTimeInSeconds)
+                            .endSpec()
+                            .withNewSpec()
+                            .withNewTemplate()
+                            .withSpec(podSpec)
+                            .endTemplate()
+                            .endSpec()
+                            .build();
+
+                    LOGGER.debug(String.format("job %s built", jobAndContainerName));
+
+                    kubernetesClient.batch().jobs().inNamespace(namespace).withName("test").create(job);
+
+                    LOGGER.debug(String.format("job %s created", jobAndContainerName));
+                }
+            }
+
         }
 
     }
@@ -119,4 +132,74 @@ public class JobManager {
         return result;
     }
 
+    private JobList getJobList() {
+        JobList jobList = null;
+        try {
+            if (kubernetesClient.batch().jobs().inNamespace(namespace) != null) {
+                jobList = kubernetesClient.batch().jobs().inNamespace(namespace).list();
+            }
+        } catch (Exception e) {
+            LOGGER.error(String.format("Exception getting job list: %s", e.getMessage()));
+        }
+        return jobList;
+    }
+
+    private List<Job> getJobs(JobList jobList, boolean active) {
+        List<Job> jobs = new ArrayList<>();
+        try {
+            if (jobList != null) {
+                for (Job job : jobList.getItems()) {
+                    if (job.getStatus() != null) {
+                        if (active && job.getStatus().getActive() > 0) {
+                            jobs.add(job);
+                        }
+                        if (!active && job.getStatus().getActive() == 0) {
+                            jobs.add(job);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error(String.format("Exception getting jobs: %s", e.getMessage()));
+        }
+        return jobs;
+    }
+
+    private int getJobCount(JobList jobList, boolean active) {
+        int jobCount = 0;
+        try {
+            if (jobList != null && jobList.getItems() != null) {
+                for (Job job : jobList.getItems()) {
+                    LOGGER.debug(job.getMetadata().getName());
+                    if (job.getStatus() != null) {
+                        JobStatus jobStatus = job.getStatus();
+                        int activeJobs = (jobStatus.getActive() != null ? jobStatus.getActive() : 0);
+                        int successfulJobs = (jobStatus.getSucceeded() != null ? jobStatus.getSucceeded(): 0);
+                        int failedJobs = (jobStatus.getFailed() != null ? jobStatus.getFailed(): 0);
+                        LOGGER.debug(String.format("Active: %d Successful: %d Failed: %d", activeJobs, successfulJobs, failedJobs));
+                        if (active && activeJobs > 0) {
+                            jobCount++;
+                        }
+                        if (!active && activeJobs == 0) {
+                            jobCount++;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error(String.format("Exception getting jobs: %s", e.getMessage()));
+            if (active) {
+                return maximumJobs + 1;
+            }
+        }
+        return jobCount;
+    }
+
+    private void sleep(int seconds) {
+        try {
+            Thread.sleep(seconds * 1000);
+        } catch (InterruptedException ex) {
+            LOGGER.error(ex.getMessage());
+        }
+    }
 }

@@ -95,4 +95,4 @@ parameters:
   displayName: Master URL
   name: MASTER_URL
   required: true
-  value: "https://console.starter-ca-central-1.openshift.com"
+  value: "https://172.30.0.1:443"
