@@ -84,7 +84,7 @@ public class JobManager {
             podTemplateSpec.setSpec(podSpec);
 
             Job job = new JobBuilder()
-                    .withApiVersion("batch/v1beta1")
+                    .withApiVersion("batch/v1")
                     .withNewMetadata()
                     .withName("hello")
                     .endMetadata()
