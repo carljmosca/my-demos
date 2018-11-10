@@ -37,11 +37,9 @@ objects:
           deploymentconfig: java-ocp-job-demo-service
       spec:
         containers:
-        - env:
-          - name: JAVA_OPTIONS
-            value: ${JAVA_OPTIONS}
-          - name: MASTER_URL
-            value: ${MASTER_URL}
+        - envFrom: 
+          - configMapRef:
+              name: java-job-demo-map
           image: carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
           imagePullPolicy: Always
           name: java-ocp-job-demo-service
@@ -79,7 +77,18 @@ objects:
       name: java-ocp-job-demo-service
     tls:
       termination: edge
-    wildcardPolicy: None        
+    wildcardPolicy: None
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: java-job-demo-map
+  data:
+    MASTER_URL: ${MASTER_URL}  
+    JAVA_OPTIONS: ${JAVA_OPTIONS}
+    MAXIMUM_JOB_TIME_IN_SECONDS: ${MAXIMUM_JOB_TIME_IN_SECONDS}
+    MAXIMUM_JOBS: ${MAXIMUM_JOBS}
+    PAUSE_SECONDS: ${PAUSE_SECONDS}
+    TOTAL_JOBS: ${TOTAL_JOBS}        
 parameters:
 - description: The name for the application.
   displayName: Application name
@@ -96,3 +105,24 @@ parameters:
   name: MASTER_URL
   required: true
   value: "https://172.30.0.1:443"
+- description: Maximum number of jobs to run (0 for unlimited)
+  displayName: Total jobs
+  name: TOTAL_JOBS
+  required: true
+  value: "0"
+- description: Time to pause in between job processing (in seconds)
+  displayName: Pause
+  name: PAUSE_SECONDS
+  value: "20"
+  required: true
+- description: Maximum number of jobs to run at one time
+  displayName: Maximum jobs        
+  name: MAXIMUM_JOBS
+  value: "3"
+  required: true
+- description: Maximum time for job completion (in seconds)
+  displayName: Maximum job time
+  name: MAXIMUM_JOB_TIME_IN_SECONDS
+  value: "20"
+  required: true
+

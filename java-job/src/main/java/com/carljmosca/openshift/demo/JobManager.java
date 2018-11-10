@@ -37,6 +37,7 @@ public class JobManager {
     private final int pauseSeconds;
     private final int maximumJobs;
     private final long maximumJobTimeInSeconds;
+    private final int totalJobs;
 
     public JobManager() {
         String masterUrl = System.getenv("MASTER_URL");
@@ -46,16 +47,17 @@ public class JobManager {
         Config config = new ConfigBuilder().withMasterUrl(masterUrl).build();
         kubernetesClient = new DefaultKubernetesClient(config);
         namespace = kubernetesClient.getNamespace();
-        pauseSeconds = JobManager.getIntValueFromEnv("PAUSE_SECONDS", 10);
-        maximumJobs = JobManager.getIntValueFromEnv("MAXIMUM_JOBS", 10);
-        maximumJobTimeInSeconds = JobManager.getIntValueFromEnv("MAXIMUM_JOB_TIME_IN_SECONDS", 25);
+        pauseSeconds = JobManager.getIntValueFromEnv("PAUSE_SECONDS", 20);
+        maximumJobs = JobManager.getIntValueFromEnv("MAXIMUM_JOBS", 3);
+        maximumJobTimeInSeconds = JobManager.getIntValueFromEnv("MAXIMUM_JOB_TIME_IN_SECONDS", 20);
+        totalJobs = JobManager.getIntValueFromEnv("TOTAL_JOBS", 0);
     }
 
     public void create() {
 
         int jobNumber = 0;
 
-        while (true) {
+        while (totalJobs == 0 || jobNumber <= totalJobs) {
 
             JobList jobList = getJobList();
             if (jobList == null) {
@@ -63,58 +65,54 @@ public class JobManager {
                 continue;
             }
 
-            if (getJobs(jobList, true).size() >= maximumJobs) {
-                System.out.println(String.format("Maximum jobs are active; pausing %d seconds.", pauseSeconds));
-                sleep(pauseSeconds);
-            } else {
+            removeCompletedJobs(jobList);
 
-                if (getJobCount(jobList, true) < maximumJobs) {
+            if (getJobCount(jobList, true) < maximumJobs) {
 
-                    // create container
-                    int random = (int) (Math.random() * 50 + 1);
-                    String jobAndContainerName = "hello-" + ++jobNumber;
-                    Container container = new Container();
-                    container.setName(jobAndContainerName);
-                    container.setImage("carljmosca/java-hello");
-                    List<EnvVar> env = new ArrayList<>();
-                    env.add(new EnvVar("PAUSE_SECONDS", Integer.toString(random), null));
-                    container.setEnv(env);
-                    List<Container> containers = new ArrayList<>();
-                    containers.add(container);
+                // create container
+                int random = (int) (Math.random() * 500 + 1);
+                String jobAndContainerName = "hello-" + ++jobNumber;
+                Container container = new Container();
+                container.setName(jobAndContainerName);
+                container.setImage("carljmosca/java-hello");
+                List<EnvVar> env = new ArrayList<>();
+                env.add(new EnvVar("PAUSE_SECONDS", Integer.toString(random), null));
+                container.setEnv(env);
+                List<Container> containers = new ArrayList<>();
+                containers.add(container);
 
-                    PodSpec podSpec = new PodSpec();
-                    podSpec.setContainers(containers);
-                    podSpec.setRestartPolicy("OnFailure");
+                PodSpec podSpec = new PodSpec();
+                podSpec.setContainers(containers);
+                podSpec.setRestartPolicy("OnFailure");
 
-                    PodTemplateSpec podTemplateSpec = new PodTemplateSpec();
-                    ObjectMeta metadata = new ObjectMeta();
-                    metadata.setName(jobAndContainerName);
-                    podTemplateSpec.setMetadata(metadata);
-                    podTemplateSpec.setSpec(podSpec);
+                PodTemplateSpec podTemplateSpec = new PodTemplateSpec();
+                ObjectMeta metadata = new ObjectMeta();
+                metadata.setName(jobAndContainerName);
+                podTemplateSpec.setMetadata(metadata);
+                podTemplateSpec.setSpec(podSpec);
 
-                    Job job = new JobBuilder()
-                            .withApiVersion("batch/v1")
-                            .withNewMetadata()
-                            .withName(jobAndContainerName)
-                            .endMetadata()
-                            .withNewSpec()
-                            .withParallelism(1)
-                            .withCompletions(1)
-                            .withActiveDeadlineSeconds(maximumJobTimeInSeconds)
-                            .endSpec()
-                            .withNewSpec()
-                            .withNewTemplate()
-                            .withSpec(podSpec)
-                            .endTemplate()
-                            .endSpec()
-                            .build();
+                Job job = new JobBuilder()
+                        .withApiVersion("batch/v1")
+                        .withNewMetadata()
+                        .withName(jobAndContainerName)
+                        .endMetadata()
+                        .withNewSpec()
+                        .withParallelism(1)
+                        .withCompletions(1)
+                        .withActiveDeadlineSeconds(maximumJobTimeInSeconds)
+                        .endSpec()
+                        .withNewSpec()
+                        .withNewTemplate()
+                        .withSpec(podSpec)
+                        .endTemplate()
+                        .endSpec()
+                        .build();
 
-                    LOGGER.debug(String.format("job %s built", jobAndContainerName));
+                LOGGER.debug(String.format("job %s built", jobAndContainerName));
 
-                    kubernetesClient.batch().jobs().inNamespace(namespace).withName("test").create(job);
+                kubernetesClient.batch().jobs().inNamespace(namespace).withName("test").create(job);
 
-                    LOGGER.debug(String.format("job %s created", jobAndContainerName));
-                }
+                LOGGER.debug(String.format("job %s created", jobAndContainerName));
             }
 
         }
@@ -165,18 +163,35 @@ public class JobManager {
         return jobs;
     }
 
+    private void removeCompletedJobs(JobList jobList) {
+        if (jobList == null || jobList.getItems() == null) {
+            return;
+        }
+        List<Job> jobs = new ArrayList<>();
+        for (Job job : jobList.getItems()) {
+            if (job.getStatus() != null) {
+                if (job.getStatus().getSucceeded() != null && job.getStatus().getSucceeded() > 0) {
+                    jobs.add(job);
+                } else if (job.getStatus().getFailed() != null && job.getStatus().getFailed() > 0) {
+                    jobs.add(job);
+                }
+            }
+        }
+        if (!jobs.isEmpty()) {
+            kubernetesClient.batch().jobs().delete(jobs);
+        }
+    }
+
     private int getJobCount(JobList jobList, boolean active) {
         int jobCount = 0;
         try {
             if (jobList != null && jobList.getItems() != null) {
                 for (Job job : jobList.getItems()) {
-                    LOGGER.debug(job.getMetadata().getName());
                     if (job.getStatus() != null) {
                         JobStatus jobStatus = job.getStatus();
                         int activeJobs = (jobStatus.getActive() != null ? jobStatus.getActive() : 0);
-                        int successfulJobs = (jobStatus.getSucceeded() != null ? jobStatus.getSucceeded(): 0);
-                        int failedJobs = (jobStatus.getFailed() != null ? jobStatus.getFailed(): 0);
-                        LOGGER.debug(String.format("Active: %d Successful: %d Failed: %d", activeJobs, successfulJobs, failedJobs));
+                        int successfulJobs = (jobStatus.getSucceeded() != null ? jobStatus.getSucceeded() : 0);
+                        int failedJobs = (jobStatus.getFailed() != null ? jobStatus.getFailed() : 0);
                         if (active && activeJobs > 0) {
                             jobCount++;
                         }
