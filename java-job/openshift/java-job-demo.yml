@@ -1,48 +1,38 @@
 apiVersion: v1
-kind: Template
-labels:
-  template: java-ocp-job-demo
-metadata:
-  name: java-ocp-job-demo
-  annotations:
-      description: java-ocp-job-demo
-      iconClass: database
-      openshift.io/display-name: java-ocp-job-demo
-      tags: java
-objects:
-- apiVersion: v1
-  kind: ServiceAccount
-  metadata:
-    name: jobcontrollersa
-    labels:
-      component: jobcontrollersa
+kind: List
+items:
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
-    name: java-ocp-job-demo-service
+    name: java-ocp-job-demo
   spec:
-    replicas: 1
+    replicas: 1  
     selector:
-      deploymentconfig: java-ocp-job-demo-service
+      deploymentconfig: java-ocp-job-demo
     strategy:
-      rollingParams:
-        intervalSeconds: 1
-        timeoutSeconds: 1800
-        updatePeriodSeconds: 1
-      type: Rolling
-    triggers: {}
+      type: Recreate
     template:
       metadata:
         labels:
-          deploymentconfig: java-ocp-job-demo-service
+          deploymentconfig: java-ocp-job-demo
       spec:
         containers:
-        - envFrom: 
-          - configMapRef:
-              name: java-job-demo-map
-          image: carljmosca/java-ocp-job-demo:1.0-SNAPSHOT
+        - name: java-ocp-job-demo
+          image: javaocpjobdemo-img:latest
           imagePullPolicy: Always
-          name: java-ocp-job-demo-service
+          env: 
+            - name: MASTER_URL
+              value: ${MASTER_URL}
+            - name: JAVA_OPTIONS
+              value: ${JAVA_OPTIONS}
+            - name: MAXIMUM_JOB_TIME_IN_SECONDS
+              value: ${MAXIMUM_JOB_TIME_IN_SECONDS}
+            - name: MAXIMUM_JOBS
+              value: ${MAXIMUM_JOBS}
+            - name: PAUSE_SECONDS
+              value: ${PAUSE_SECONDS}
+            - name: TOTAL_JOBS
+              value: ${TOTAL_JOBS}
           resources:
             requests:
               cpu: 250m
@@ -51,39 +41,48 @@ objects:
               cpu: 500m
               memory: 512Mi
         restartPolicy: Always
-  status: {}
+        serviceAccount: deployer
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - java-ocp-job-demo
+        from:
+          kind: ImageStreamTag
+          name: javaocpjobdemo-img:latest
+      type: ImageChange    
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: javaocpjobdemo-img
+    labels:
+      app: javaocpjobdemo
+  spec:
+    tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: carljmosca/java-ocp-job-demo
 - apiVersion: v1
   kind: Service
   metadata:
-    name: java-ocp-job-demo-service
+    name: java-ocp-job-demo
   spec:
     ports:
     - name: http
       port: 8080
-      targetPort: 0
+      targetPort: 8080
     selector:
-      deploymentconfig: java-ocp-job-demo-service
+      deploymentconfig: java-ocp-job-demo
     sessionAffinity: None
     type: ClusterIP
-- apiVersion: v1
-  kind: Route
-  metadata:
-    name: java-ocp-job-demo
-  spec:
-    port:
-      targetPort: "http"
-    to:
-      kind: Service
-      name: java-ocp-job-demo-service
-    tls:
-      termination: edge
-    wildcardPolicy: None
 - apiVersion: v1
   kind: ConfigMap
   metadata:
     name: java-job-demo-map
   data:
-    MASTER_URL: ${MASTER_URL}  
+    MASTER_URL: ${MASTER_URL}
     JAVA_OPTIONS: ${JAVA_OPTIONS}
     MAXIMUM_JOB_TIME_IN_SECONDS: ${MAXIMUM_JOB_TIME_IN_SECONDS}
     MAXIMUM_JOBS: ${MAXIMUM_JOBS}
@@ -94,7 +93,8 @@ parameters:
   displayName: Application name
   name: APPLICATION_NAME
   required: true
-  value: java-ocp-job-demo
+  value: javaocpjobdemo
+  from: "[a-zA-Z0-9]"
 - description: Java options
   displayName: Java options
   name: JAVA_OPTIONS
@@ -104,7 +104,7 @@ parameters:
   displayName: Master URL
   name: MASTER_URL
   required: true
-  value: "https://172.30.0.1:443"
+  value: "https://console.starter-ca-central-1.openshift.com"
 - description: Maximum number of jobs to run (0 for unlimited)
   displayName: Total jobs
   name: TOTAL_JOBS
