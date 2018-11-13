@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: java-ocp-job-demo
+metadata:
+  name: java-ocp-job-demo
+  annotations:
+      description: Java OCP Job Demo
+objects:
+- apiVersion: batch/v1beta1
+  kind: CronJob
+  metadata:
+    name: javaocpjobdemo
+  spec:
+    schedule: ${JOB_SCHEDULE}
+    jobTemplate:             
+      spec:
+        template:
+          spec:
+            containers:
+            - env:
+              - name: MASTER_URL
+                value: ${MASTER_URL}
+              - name: JAVA_OPTIONS
+                value: ${JAVA_OPTIONS}
+              - name: MAXIMUM_JOB_TIME_IN_SECONDS
+                value: ${MAXIMUM_JOB_TIME_IN_SECONDS}
+              - name: MAXIMUM_JOBS
+                value: ${MAXIMUM_JOBS}
+              name: javaocpjobdemo
+              image: carljmosca/java-ocp-job-demo
+            imagePullPolicy: Always
+            restartPolicy: OnFailure
+            serviceAccount: deployer  
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: java-job-demo-map
+  data:
+    MASTER_URL: ${MASTER_URL}
+    JAVA_OPTIONS: ${JAVA_OPTIONS}
+    MAXIMUM_JOB_TIME_IN_SECONDS: ${MAXIMUM_JOB_TIME_IN_SECONDS}
+    MAXIMUM_JOBS: ${MAXIMUM_JOBS}
+    PAUSE_SECONDS: ${PAUSE_SECONDS}
+    TOTAL_JOBS: ${TOTAL_JOBS}        
+parameters:
+- description: The name for the application.
+  displayName: Application name
+  name: APPLICATION_NAME
+  required: true
+  value: javaocpjobdemo
+  from: "[a-zA-Z0-9]"
+- description: Java options
+  displayName: Java options
+  name: JAVA_OPTIONS
+  value: "-Xmx512m"
+  required: true
+- description: OpenShift Master URL
+  displayName: Master URL
+  name: MASTER_URL
+  required: true
+  value: "https://172.30.0.1"
+- description: Maximum number of jobs to run at one time
+  displayName: Maximum jobs        
+  name: MAXIMUM_JOBS
+  value: "3"
+  required: true
+- description: Maximum time for job completion (in seconds)
+  displayName: Maximum job time
+  name: MAXIMUM_JOB_TIME_IN_SECONDS
+  value: "20"
+  required: true
+- description: Job schedule in cron format
+  displayName: Job schedule
+  name: JOB_SCHEDULE
+  value: "*/2 * * * *"
+  required: true  
+
