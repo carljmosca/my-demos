@@ -121,10 +121,12 @@ public class JobManager {
 
     private static int getIntValueFromEnv(String env, int defaultValue) {
         int result;
+        String value = "";
         try {
-            result = Integer.parseInt(env);
+            value = System.getenv(env);
+            result = Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            System.out.println("Did not find valid value for " + env + " variable; using " + defaultValue);
+            System.out.println(String.format("Found invalid value %s for variable %s using ", value, env, defaultValue));
             result = defaultValue;
         }
         return result;

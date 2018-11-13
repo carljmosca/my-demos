@@ -1,6 +1,12 @@
 apiVersion: v1
-kind: List
-items:
+kind: Template
+labels:
+  template: java-ocp-job-demo
+metadata:
+  name: java-ocp-job-demo
+  annotations:
+      description: Java OCP Job Demo
+objects:
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
@@ -20,7 +26,7 @@ items:
         - name: java-ocp-job-demo
           image: javaocpjobdemo-img:latest
           imagePullPolicy: Always
-          env: 
+          env:
             - name: MASTER_URL
               value: ${MASTER_URL}
             - name: JAVA_OPTIONS
