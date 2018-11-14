@@ -37,6 +37,7 @@ public class JobManager {
     private final String namespace;
     private final int maximumJobs;
     private final long maximumJobTimeInSeconds;
+    private static final String JOBKIND_JOB = "Job";
 
     public JobManager() {
         String masterUrl = System.getenv("MASTER_URL");
@@ -58,20 +59,21 @@ public class JobManager {
         }
 
         removeCompletedJobs(jobList);
-        
+
         JobStatusResult jobStatusResult = getJobs(jobList);
-        
-        LOGGER.info(String.format("Current jobs - active: %d, failed: %d, successful: %d", 
-                jobStatusResult.getActiveJobsCount(), jobStatusResult.getFailedJobsCount(), 
+
+        LOGGER.info(String.format("Current jobs - active: %d, failed: %d, successful: %d",
+                jobStatusResult.getActiveJobsCount(), jobStatusResult.getFailedJobsCount(),
                 jobStatusResult.getSuccessfulJobsCount()));
-        
+
         int jobCount = jobStatusResult.getActiveJobsCount();
-        while (++jobCount <= maximumJobs) {
+        // the cronjob itself apparently counts as an active job
+        while (++jobCount <= (maximumJobs + 1)) {
 
             // create container
-            int random = (int) (Math.random() * 500 + 1);            
+            int random = (int) (Math.random() * 500 + 1);
             UUID uuid = UUID.randomUUID();
-            
+
             String jobAndContainerName = "hello-" + uuid.toString();
             Container container = new Container();
             container.setName(jobAndContainerName);
@@ -158,17 +160,17 @@ public class JobManager {
         try {
             if (jobList != null && jobList.getItems() != null) {
                 for (Job job : jobList.getItems()) {
-                    if (job.getStatus() != null) {
+                    if (job.getStatus() != null && JOBKIND_JOB.equals(job.getKind())) {
                         JobStatus jobStatus = job.getStatus();
                         if (jobStatus.getActive() != null) {
                             jobStatusResult.incrementActiveJobs(jobStatus.getActive());
                             jobStatusResult.getActiveJobs().add(job);
                         }
-                        if (jobStatus.getFailed()!= null) {
+                        if (jobStatus.getFailed() != null) {
                             jobStatusResult.incrementFailedJobs(jobStatus.getFailed());
                             jobStatusResult.getFailedJobs().add(job);
                         }
-                        if (jobStatus.getSucceeded()!= null) {
+                        if (jobStatus.getSucceeded() != null) {
                             jobStatusResult.incrementSuccessfulJobs(jobStatus.getSucceeded());
                             jobStatusResult.getSuccessfulJobs().add(job);
                         }
@@ -177,6 +179,15 @@ public class JobManager {
             }
         } catch (Exception e) {
             LOGGER.error(String.format("Exception getting jobs: %s", e.getMessage()));
+        }
+        for (Job job : jobStatusResult.getActiveJobs()) {
+            LOGGER.debug(String.format("Active job: %s", job.getMetadata().getName()));
+        }
+        for (Job job : jobStatusResult.getFailedJobs()) {
+            LOGGER.debug(String.format("Failed job: %s", job.getMetadata().getName()));
+        }
+        for (Job job : jobStatusResult.getSuccessfulJobs()) {
+            LOGGER.debug(String.format("Successful job: %s", job.getMetadata().getName()));
         }
         return jobStatusResult;
     }
