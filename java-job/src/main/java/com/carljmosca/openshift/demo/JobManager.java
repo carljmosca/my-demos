@@ -38,6 +38,8 @@ public class JobManager {
     private final int maximumJobs;
     private final long maximumJobTimeInSeconds;
     private static final String JOBKIND_JOB = "Job";
+    private static final String JOB_LABEL_KEY = "JobIdentifier";
+    private static final String JOB_LABEL_VALUE = "HelloJob";
 
     public JobManager() {
         String masterUrl = System.getenv("MASTER_URL");
@@ -53,22 +55,22 @@ public class JobManager {
 
     public void create() {
 
-        JobList jobList = getJobList();
+        removeCompletedJobs();
+
+        JobList jobList = getJobList(JOB_LABEL_KEY, JOB_LABEL_VALUE);
         if (jobList == null) {
             return;
         }
 
-        removeCompletedJobs(jobList);
-
-        JobStatusResult jobStatusResult = getJobs(jobList);
+        JobStatusResult jobStatusResult = getJobStatuses(jobList);
 
         LOGGER.info(String.format("Current jobs - active: %d, failed: %d, successful: %d",
                 jobStatusResult.getActiveJobsCount(), jobStatusResult.getFailedJobsCount(),
                 jobStatusResult.getSuccessfulJobsCount()));
 
         int jobCount = jobStatusResult.getActiveJobsCount();
-        // the cronjob itself apparently counts as an active job
-        while (++jobCount <= (maximumJobs + 1)) {
+
+        while (++jobCount <= (maximumJobs)) {
 
             // create container
             int random = (int) (Math.random() * 500 + 1);
@@ -98,6 +100,7 @@ public class JobManager {
                     .withApiVersion("batch/v1")
                     .withNewMetadata()
                     .withName(jobAndContainerName)
+                    .addToLabels(JOB_LABEL_KEY, JOB_LABEL_VALUE)
                     .endMetadata()
                     .withNewSpec()
                     .withParallelism(1)
@@ -132,19 +135,32 @@ public class JobManager {
     }
 
     private JobList getJobList() {
+        return getJobList(null, null);
+    }
+
+    private JobList getJobList(String labelKey, String labelValue) {
         JobList jobList = null;
         try {
             if (kubernetesClient.batch().jobs().inNamespace(namespace) != null) {
-                jobList = kubernetesClient.batch().jobs().inNamespace(namespace).list();
+                if (labelKey != null && labelValue != null) {
+                    jobList = kubernetesClient.batch().jobs().inNamespace(namespace).withLabel(labelKey, labelValue).list();
+                } else {
+                    jobList = kubernetesClient.batch().jobs().inNamespace(namespace).list();
+                }
             }
+
         } catch (Exception e) {
             LOGGER.error(String.format("Exception getting job list: %s", e.getMessage()));
         }
         return jobList;
     }
 
-    private void removeCompletedJobs(JobList jobList) {
-        JobStatusResult jobStatusResult = getJobs(jobList);
+    private void removeCompletedJobs() {
+        JobList jobList = getJobList();
+        if (jobList == null || jobList.getItems().isEmpty()) {
+            return;
+        }
+        JobStatusResult jobStatusResult = getJobStatuses(jobList);
         if (!jobStatusResult.getFailedJobs().isEmpty()) {
             LOGGER.info(String.format("Removing %d failed jobs", jobStatusResult.getFailedJobsCount()));
             kubernetesClient.batch().jobs().delete(jobStatusResult.getFailedJobs());
@@ -155,12 +171,12 @@ public class JobManager {
         }
     }
 
-    private JobStatusResult getJobs(JobList jobList) {
+    private JobStatusResult getJobStatuses(JobList jobList) {
         JobStatusResult jobStatusResult = new JobStatusResult();
         try {
             if (jobList != null && jobList.getItems() != null) {
                 for (Job job : jobList.getItems()) {
-                    if (job.getStatus() != null && JOBKIND_JOB.equals(job.getKind())) {
+                    if (job.getStatus() != null) {
                         JobStatus jobStatus = job.getStatus();
                         if (jobStatus.getActive() != null) {
                             jobStatusResult.incrementActiveJobs(jobStatus.getActive());
